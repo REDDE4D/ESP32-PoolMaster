@@ -1,0 +1,386 @@
+/*
+  NEXTION TFT related code, based on EasyNextion library by Seithan / Athanasios Seitanis (https://github.com/Seithan/EasyNextionLibrary)
+  The trigger(s) functions at the end are called by the Nextion library on event (buttons, page change).
+
+  Completely reworked and simplified. These functions only update Nextion variables. The display is then updated localy by the
+  Nextion itself.
+
+  Remove every usages of String in order to avoid duplication, fragmentation and random crashes.
+  Note usage of snprintf_P which uses a fmt string that resides in program memory.
+*/
+
+#include <Arduino.h>
+#include "Config.h"
+#include "PoolMaster.h"
+#include "EasyNextionLibrary.h"
+
+static volatile int CurrentPage = 0;
+static volatile bool TFT_ON = true;           // display status
+
+static char temp[32];
+static unsigned long LastAction = 0; // Last action time done on TFT. Go to sleep after TFT_SLEEP
+static char HourBuffer[9];
+
+// Variables used to refresh buttons only on status change
+static bool TFT_Automode = false;
+static bool TFT_Filt = false;
+static bool TFT_Robot = false;
+static bool TFT_R0 = false;
+static bool TFT_R1 = false;
+static bool TFT_Winter = false;
+
+//Nextion TFT object. Choose which ever Serial port
+//you wish to connect to (not "Serial" which is used for debug), here Serial2 UART
+static EasyNex myNex(Serial2);
+
+// Functions prototypes
+void InitTFT(void);
+void ResetTFT(void);
+void UpdateTFT(void);
+void UpdateWiFi(bool);
+
+
+//Reset TFT at start of controller - Change transmission rate to 115200 bauds on both side (Nextion then ESP)
+//could have been not in HMI file, but it is good to know that after reset the Nextion goes back to 9600 bauds
+void ResetTFT()
+{
+  myNex.begin(115200);
+  myNex.writeStr("sleep=0");
+  myNex.writeStr(F("rest"));
+  myNex.writeStr(F("wup=0"));
+  delay(1000);
+}
+
+void InitTFT()
+{
+  myNex.writeNum(F("page0.vaMode.val"), storage.AutoMode);
+  myNex.writeNum(F("page1.vaFilt.val"),0);
+  myNex.writeNum(F("page1.vaRobot.val"),0);
+  myNex.writeNum(F("page1.vaR0.val"),0);
+  myNex.writeNum(F("page1.vaR1.val"),0);
+  myNex.writeNum(F("page1.vaR2.val"),0);
+  myNex.writeStr(F("page3.vaMCFW.txt"),FIRMW);
+  myNex.writeStr(F("page3.vaTFTFW.txt"),TFT_FIRMW);
+}
+
+void UpdateWiFi(bool wifi){
+  if(wifi){
+    snprintf_P(temp,sizeof(temp),PSTR("WiFi: %s"),WiFi.SSID().c_str());
+    myNex.writeStr(F("page3.vaSSID.txt"),temp);
+    snprintf_P(temp,sizeof(temp),PSTR("IP: %s"),WiFi.localIP().toString());
+    myNex.writeStr(F("page3.vaIP.txt"),temp);
+  } else
+  {
+    myNex.writeStr(F("page3.vaSSID.txt"),"Not connected");
+    myNex.writeStr(F("page3.vaIP.txt"),"");
+  } 
+}
+
+//Function to update TFT display
+//update the global variables of the TFT + the widgets of the active page
+//call this function at least every second to ensure fluid display
+void UpdateTFT()
+{
+  // Has any button been touched? If yes, one of the trigger routines
+  // will fire
+  myNex.NextionListen();  
+
+  // Updates done only if TFT ON, useless (and not taken into account) if not
+  if(TFT_ON)
+  {
+    sprintf(HourBuffer, PSTR("%02d:%02d:%02d"), hour(), minute(), second());
+    myNex.writeStr(F("page0.vaTime.txt"),HourBuffer);
+    myNex.writeNum(F("page0.vaNetW.val"),MQTTConnection ? 1:0);
+    snprintf_P(temp,sizeof(temp),PSTR("%02d/%02dh"),storage.FiltrationStart,storage.FiltrationStop);
+    myNex.writeStr(F("page0.vaStaSto.txt"),temp);
+    if(TFT_Automode != storage.AutoMode) 
+    { myNex.writeNum(F("page0.vaMode.val"),storage.AutoMode);
+      TFT_Automode = storage.AutoMode;}
+    if(TFT_Winter != storage.WinterMode) 
+    { myNex.writeNum(F("page1.vaR2.val"),storage.WinterMode);
+      TFT_Winter = storage.WinterMode;}  
+    myNex.writeNum(F("page0.vapHLevel.val"),PhPump.TankLevel() ? 0:1);      
+    myNex.writeNum(F("page0.vaChlLevel.val"),ChlPump.TankLevel() ? 0:1);
+    myNex.writeNum(F("page0.vaPSIErr.val"),PSIError ? 1:0);
+    myNex.writeNum(F("page0.vaChlUTErr.val"),ChlPump.UpTimeError ? 1:0);
+    myNex.writeNum(F("page0.vapHUTErr.val"),PhPump.UpTimeError ? 1:0);  
+
+    if(CurrentPage==0)
+    {
+      snprintf_P(temp,sizeof(temp),PSTR("%4.2f"),storage.PhValue);      
+      myNex.writeStr(F("page0.vapH.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%3.0f"),storage.OrpValue);      
+      myNex.writeStr(F("page0.vaOrp.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("(%3.1f)"),storage.Ph_SetPoint);
+      myNex.writeStr(F("page0.vapHSP.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("(%3.0f)"),storage.Orp_SetPoint);      
+      myNex.writeStr(F("page0.vaOrpSP.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%s"),(PhPID.GetMode() == 1) ? PSTR("PID") : PSTR("---"));            
+      myNex.writeStr(F("page0.vapHPID.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%s"),(OrpPID.GetMode() == 1) ? PSTR("PID") : PSTR("---"));               
+      myNex.writeStr(F("page0.vaOrpPID.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%4.1f°C"),storage.TempValue); 
+      myNex.writeStr(F("page0.vaWT.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%4.1f°C"),storage.TempExternal);      
+      myNex.writeStr(F("page0.vaAT.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%4.2fb"),storage.PSIValue);   
+      myNex.writeStr(F("page0.vaPSI.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%d%% / %4.1fmin"),(int)round(PhPump.GetTankFill()),float(PhPump.UpTime)/1000./60.);
+      myNex.writeStr(F("page0.vapHTk.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("%d%% / %4.1fmin"),(int)round(ChlPump.GetTankFill()),float(ChlPump.UpTime)/1000./60.);        
+      myNex.writeStr(F("page0.vaChlTk.txt"),temp);
+
+      if(abs(storage.PhValue-storage.Ph_SetPoint) <= 0.1) 
+        myNex.writeNum(F("page0.vapHErr.val"),0);
+      if(abs(storage.PhValue-storage.Ph_SetPoint) > 0.1 && abs(storage.PhValue-storage.Ph_SetPoint) <= 0.2)  
+        myNex.writeNum(F("page0.vapHErr.val"),1);
+      if(abs(storage.PhValue-storage.Ph_SetPoint) > 0.2)  
+        myNex.writeNum(F("page0.vapHErr.val"),2);
+      if(abs(storage.OrpValue-storage.Orp_SetPoint) <= 20.) 
+        myNex.writeNum(F("page0.vaOrpErr.val"),0);
+      if(abs(storage.OrpValue-storage.Orp_SetPoint) > 20. && abs(storage.OrpValue-storage.Orp_SetPoint) <= 40.)  
+        myNex.writeNum(F("page0.vaOrpErr.val"),1);
+      if(abs(storage.OrpValue-storage.Orp_SetPoint) > 40.)  
+        myNex.writeNum(F("page0.vaOrpErr.val"),2);        
+    }
+
+    if(CurrentPage == 1)
+    {
+      if(TFT_Filt != FiltrationPump.IsRunning())
+      { myNex.writeNum(F("page1.vaFilt.val"), TFT_Filt ? 0:1);
+        TFT_Filt = !TFT_Filt;}
+      if(TFT_Robot != RobotPump.IsRunning())
+      { myNex.writeNum(F("page1.vaRobot.val"), TFT_Robot ? 0:1);
+        TFT_Robot = !TFT_Robot;}
+      if(digitalRead(RELAY_R0) != TFT_R0)
+      { myNex.writeNum(F("page1.vaR0.val"), TFT_R0 ? 1:0);
+        TFT_R0 = !TFT_R0;}
+      if(digitalRead(RELAY_R1) != TFT_R1)
+      { myNex.writeNum(F("page1.vaR1.val"), TFT_R1 ? 1:0);
+        TFT_R1 = !TFT_R1;}  
+    } 
+
+    if(CurrentPage == 2) {
+      snprintf_P(temp,sizeof(temp),PSTR("(%4.2f)"),storage.PhValue); 
+      myNex.writeStr(F("page0.vapH.txt"),temp);
+      snprintf_P(temp,sizeof(temp),PSTR("(%3.0f)"),storage.OrpValue);       
+      myNex.writeStr(F("page0.vaOrp.txt"),temp);
+    }       
+
+    if(CurrentPage == 3) 
+    {  UpdateWiFi(WiFi.status() == WL_CONNECTED);
+      myNex.writeStr(F("page3.vaMCFW.txt"),FIRMW);
+      myNex.writeStr(F("page3.vaTFTFW.txt"),TFT_FIRMW);
+    }  
+
+    //put TFT in sleep mode with wake up on touch and force page 0 load to trigger an event
+    if((unsigned long)(millis() - LastAction) >= TFT_SLEEP && TFT_ON && CurrentPage !=2)
+    {
+      myNex.writeStr(F("thup=1"));
+      myNex.writeStr(F("wup=0"));
+      myNex.writeStr(F("sleep=1"));
+      TFT_ON = false;
+    }
+
+    // === SP7 — Aqua Glass HMI variable writes ===
+    // Home page additions
+    snprintf_P(temp,sizeof(temp),PSTR("%4.2f"),storage.PSIValue);
+    myNex.writeStr(F("page0.vaPress.txt"),temp);
+    myNex.writeNum(F("page0.vaPressOK.val"), PSIError ? 0 : 1);
+
+    // Switches page additions: pump live state + uptime today
+    myNex.writeNum(F("page1.vaPhPump.val"), PhPump.IsRunning() ? 1 : 0);
+    myNex.writeNum(F("page1.vaChlPump.val"), ChlPump.IsRunning() ? 1 : 0);
+    {
+      // Pump.UpTime is unsigned long milliseconds. Format as "Hh MMm" or
+      // "MMm" if under an hour. Tabular spacing kept by snprintf width
+      // specifiers; HMI font is monospace-friendly for digits.
+      auto fmtUp = [](unsigned long ms, char* out, size_t cap) {
+        unsigned long sec = ms / 1000;
+        unsigned long h   = sec / 3600;
+        unsigned long m   = (sec % 3600) / 60;
+        if (h > 0) snprintf(out, cap, "%luh %02lum", h, m);
+        else       snprintf(out, cap, "%lum",        m);
+      };
+      char up[16];
+      fmtUp(FiltrationPump.UpTime, up, sizeof(up)); myNex.writeStr(F("page1.vaFiltUp.txt"),  up);
+      fmtUp(RobotPump.UpTime,      up, sizeof(up)); myNex.writeStr(F("page1.vaRobotUp.txt"), up);
+      fmtUp(PhPump.UpTime,         up, sizeof(up)); myNex.writeStr(F("page1.vaPhUp.txt"),    up);
+      fmtUp(ChlPump.UpTime,        up, sizeof(up)); myNex.writeStr(F("page1.vaChlUp.txt"),   up);
+    }
+
+    // Settings page additions: WiFi RSSI, MQTT status, uptime, free heap, winter mode
+    snprintf_P(temp,sizeof(temp),PSTR("%d dBm"),(int)WiFi.RSSI());
+    myNex.writeStr(F("page3.vaRSSI.txt"),temp);
+    myNex.writeStr(F("page3.vaMqttStat.txt"), MQTTConnection ? "connected" : "disconnected");
+    {
+      unsigned long upSec = millis() / 1000;
+      unsigned long upH   = upSec / 3600;
+      unsigned long upM   = (upSec % 3600) / 60;
+      if (upH > 0) snprintf(temp, sizeof(temp), "%luh %02lum", upH, upM);
+      else         snprintf(temp, sizeof(temp), "%lum",        upM);
+      myNex.writeStr(F("page3.vaUptime.txt"),temp);
+    }
+    snprintf_P(temp,sizeof(temp),PSTR("%u KB"),(unsigned)(ESP.getFreeHeap()/1024));
+    myNex.writeStr(F("page3.vaFreeHeap.txt"),temp);
+    myNex.writeStr(F("page3.vaWinter.txt"), storage.WinterMode ? "on" : "off");
+  }
+}
+
+//Page 0 has finished loading
+//printh 23 02 54 01
+void trigger1()
+{
+  CurrentPage = 0;
+  if(!TFT_ON)
+  {
+    UpdateWiFi(WiFi.status() == WL_CONNECTED);
+    TFT_ON = true;  
+  }
+  LastAction = millis();
+}
+
+//Page 1 has finished loading
+//printh 23 02 54 02
+void trigger2()
+{
+  CurrentPage = 1;
+  LastAction = millis();
+}
+
+//Page 2 has finished loading
+//printh 23 02 54 03
+void trigger3()
+{
+  CurrentPage = 2;
+  LastAction = millis();  
+}
+
+//Page 3 has finished loading
+//printh 23 02 54 04
+void trigger4()
+{
+  CurrentPage = 3;
+  LastAction = millis();
+}
+
+//MODE button was toggled
+//printh 23 02 54 05
+void trigger5()
+{
+  char Cmd[100] = "{\"Mode\":1}";
+  if(storage.AutoMode) Cmd[8] = '0';
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//FILT button was toggled
+//printh 23 02 54 06
+void trigger6()
+{
+  char Cmd[100] = "{\"FiltPump\":1}";
+  if(FiltrationPump.IsRunning()) Cmd[12] = '0';
+  else TFT_Filt = true;
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Robot button was toggled
+//printh 23 02 54 07
+void trigger7()
+{
+  char Cmd[100] = "{\"RobotPump\":1}";
+  if(RobotPump.IsRunning()) Cmd[13] = '0';
+  else TFT_Robot = true;
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Relay 0 button was toggled
+//printh 23 02 54 08
+void trigger8()
+{
+  char Cmd[100] = "{\"Relay\":[0,0]}";
+  if(digitalRead(RELAY_R0)) Cmd[12] = '1';
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Relay 1 button was toggled
+//printh 23 02 54 09
+void trigger9()
+{
+  char Cmd[100] = "{\"Relay\":[1,0]}";
+  if(digitalRead(RELAY_R1)) Cmd[12] = '1';
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Winter button was toggled
+//printh 23 02 54 0A
+void trigger10()
+{
+  char Cmd[100] = "{\"Winter\":1}";
+  if(storage.WinterMode) Cmd[10] = '0';
+  else TFT_Winter = true;
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Probe calibration completed or new pH, Orp or Water Temp setpoints or New tank
+//printh 23 02 54 0B
+void trigger11()
+{
+  char Cmd[100] = "";
+  strcpy(Cmd,myNex.readStr(F("pageCalibs.vaCommand.txt")).c_str());
+  xQueueSendToBack(queueIn,&Cmd,0);
+  Debug.print(DBG_VERBOSE,"Nextion cal page command: %s",Cmd);
+  LastAction = millis();
+}
+
+//Clear Errors button pressed
+//printh 23 02 54 0C
+void trigger12()
+{
+  char Cmd[100] = "{\"Clear\":1}";
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//pH PID button pressed
+//printh 23 02 54 0D
+void trigger13()
+{
+  char Cmd[100] = "{\"PhPID\":1}";
+  if(PhPID.GetMode() == 1) Cmd[9] = '0';
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Orp PID button pressed
+//printh 23 02 54 0E
+void trigger14()
+{
+  char Cmd[100] = "{\"OrpPID\":1}";
+  if(OrpPID.GetMode() == 1) Cmd[10] = '0';
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Clear errors button (Settings page)
+//printh 23 02 54 0F
+void trigger15()
+{
+  char Cmd[100] = "{\"Clear\":1}";
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}
+
+//Reboot button (Settings page)
+//printh 23 02 54 10
+void trigger16()
+{
+  char Cmd[100] = "{\"Reboot\":1}";
+  xQueueSendToBack(queueIn,&Cmd,0);
+  LastAction = millis();
+}

@@ -1,0 +1,36 @@
+:root {
+  --bg:#f8fafc; --fg:#1e293b; --muted:#64748b; --brand:#0284c7;
+  --border:#cbd5e1; --danger:#b91c1c;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; padding:0; background:var(--bg); color:var(--fg);
+  font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+main { max-width:32rem; margin:1rem auto; padding:1.5rem; }
+header h1 { font-size:1.8rem; margin:0; color:var(--brand); }
+header .sub { color:var(--muted); margin:.25rem 0 1.5rem; }
+.step { display:none; background:#fff; border:1px solid var(--border);
+  border-radius:.75rem; padding:1.25rem; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.step.active { display:block; }
+.step h2 { margin:0 0 .25rem; font-size:1.2rem; }
+.step .hint { color:var(--muted); margin:0 0 1rem; font-size:.95rem; }
+form label { display:block; margin:.75rem 0; }
+form input, form select {
+  width:100%; padding:.55rem .7rem; border:1px solid var(--border);
+  border-radius:.4rem; font:inherit; background:#fff; }
+form input:focus { outline:2px solid var(--brand); outline-offset:1px; }
+.actions { display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem; }
+button {
+  background:var(--brand); color:#fff; border:none; padding:.55rem 1rem;
+  border-radius:.4rem; font:inherit; cursor:pointer; }
+button.link { background:none; color:var(--muted); }
+button.link:hover { color:var(--fg); }
+#scanBtn { background:#e2e8f0; color:var(--fg); margin-bottom:.5rem; }
+#netList { list-style:none; padding:0; margin:0 0 1rem; max-height:12rem;
+  overflow-y:auto; border:1px solid var(--border); border-radius:.4rem; }
+#netList li { padding:.5rem .7rem; border-bottom:1px solid var(--border);
+  cursor:pointer; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.9rem; }
+#netList li:last-child { border-bottom:none; }
+#netList li:hover { background:#f1f5f9; }
+.err { color:var(--danger); font-size:.9rem; margin-top:.5rem; }
+code { background:#e2e8f0; padding:.1rem .3rem; border-radius:.2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.85em; }

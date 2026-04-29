@@ -1,0 +1,2 @@
+RAM:   [==        ]  23.0% (used 75420 bytes from 327680 bytes)
+Flash: [==========]  97.2% (used 1465773 bytes from 1507328 bytes)

@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    @apply bg-aqua-bg-900 bg-aqua-gradient min-h-screen text-aqua-text font-sans antialiased;
+    background-attachment: fixed;
+  }
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :root {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-aqua-surface border border-aqua-border rounded-xl backdrop-blur-glass;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .glass-elev {
+    @apply bg-aqua-surface-elev border border-aqua-border-elev rounded-xl backdrop-blur-glass;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .label-caps {
+    @apply text-[0.7rem] uppercase tracking-[0.08em] font-semibold text-aqua-label;
+  }
+  .val-num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Safe-area padding for iOS notch / bottom bar */
+.safe-top    { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PoolMaster Setup</title>
+  <link rel="stylesheet" href="/setup.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <h1>PoolMaster</h1>
+      <p class="sub">First-run setup</p>
+    </header>
+
+    <section id="step-wifi" class="step active">
+      <h2>1. Connect to WiFi</h2>
+      <p class="hint">Pick your home network. Your phone will briefly disconnect from this AP while the device joins.</p>
+      <button type="button" id="scanBtn">Scan networks</button>
+      <ul id="netList" aria-label="Scanned networks"></ul>
+      <form id="wifiForm">
+        <label>Network SSID
+          <input name="ssid" id="ssidInput" required autocomplete="off" />
+        </label>
+        <label>Password
+          <input type="password" name="psk" id="pskInput" autocomplete="new-password" />
+        </label>
+        <div class="actions">
+          <button type="submit">Save &amp; continue</button>
+        </div>
+        <p class="err" id="wifiErr" hidden></p>
+      </form>
+    </section>
+
+    <section id="step-admin" class="step">
+      <h2>2. Set an admin password</h2>
+      <p class="hint">Protects the web UI and OTA. You can skip this — you can set one later.</p>
+      <form id="adminForm">
+        <label>Admin password
+          <input type="password" name="pwd" id="adminPwd" autocomplete="new-password" />
+        </label>
+        <div class="actions">
+          <button type="button" class="link" data-skip="admin">Skip</button>
+          <button type="submit">Save &amp; continue</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="step-mqtt" class="step">
+      <h2>3. Home Assistant / MQTT</h2>
+      <p class="hint">Enter your MQTT broker to enable HA auto-discovery. Skip to configure later.</p>
+      <form id="mqttForm">
+        <label>Broker host
+          <input name="host" id="mqttHost" placeholder="192.168.1.50" autocomplete="off" />
+        </label>
+        <label>Port
+          <input name="port" type="number" value="1883" min="1" max="65535" />
+        </label>
+        <label>Username (optional)
+          <input name="user" autocomplete="off" />
+        </label>
+        <label>Password (optional)
+          <input name="pass" type="password" autocomplete="new-password" />
+        </label>
+        <div class="actions">
+          <button type="button" class="link" data-skip="mqtt">Skip</button>
+          <button type="submit">Save &amp; continue</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="step-time" class="step">
+      <h2>4. Timezone</h2>
+      <p class="hint">POSIX TZ string. Default is Central European (DST aware).</p>
+      <form id="timeForm">
+        <label>TZ
+          <input name="tz" value="CET-1CEST,M3.5.0/2,M10.5.0/3" />
+        </label>
+        <div class="actions">
+          <button type="button" class="link" data-skip="time">Skip</button>
+          <button type="submit">Save &amp; continue</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="step-done" class="step">
+      <h2>All set</h2>
+      <p>Device will reboot, join your WiFi, and come online at <code>poolmaster.local</code>.</p>
+      <p class="hint">If it doesn't, your router may not support mDNS — check its IP in the DHCP client list.</p>
+      <div class="actions">
+        <button type="button" id="finishBtn">Finish &amp; reboot</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    const steps = ['wifi', 'admin', 'mqtt', 'time', 'done'];
+    let current = 0;
+
+    function show(i) {
+      current = i;
+      steps.forEach((k, idx) => {
+        document.getElementById(`step-${k}`).classList.toggle('active', idx === i);
+      });
+    }
+
+    async function postForm(url, form) {
+      const body = new URLSearchParams(new FormData(form));
+      const r = await fetch(url, { method: 'POST', body });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    document.querySelectorAll('[data-skip]').forEach(btn => {
+      btn.addEventListener('click', () => show(current + 1));
+    });
+
+    document.getElementById('scanBtn').addEventListener('click', async () => {
+      const list = document.getElementById('netList');
+      list.innerHTML = '<li>Scanning…</li>';
+      async function poll() {
+        const r = await fetch('/api/wifi/scan');
+        const j = await r.json();
+        if (j.scanning) { setTimeout(poll, 1500); return; }
+        list.innerHTML = '';
+        (j.networks || []).sort((a,b) => b.rssi - a.rssi).forEach(n => {
+          const li = document.createElement('li');
+          li.textContent = `${n.ssid}  (${n.rssi} dBm)${n.secure ? ' 🔒' : ''}`;
+          li.addEventListener('click', () => {
+            document.getElementById('ssidInput').value = n.ssid;
+            document.getElementById('pskInput').focus();
+          });
+          list.appendChild(li);
+        });
+      }
+      poll();
+    });
+
+    document.getElementById('wifiForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const err = document.getElementById('wifiErr');
+      err.hidden = true;
+      try {
+        await postForm('/api/wifi/save', e.target);
+        show(current + 1);
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.hidden = false;
+      }
+    });
+
+    document.getElementById('adminForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      await postForm('/api/admin/save', e.target);
+      show(current + 1);
+    });
+
+    document.getElementById('mqttForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      await postForm('/api/mqtt/save', e.target);
+      show(current + 1);
+    });
+
+    document.getElementById('timeForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      await postForm('/api/time/save', e.target);
+      show(current + 1);
+    });
+
+    document.getElementById('finishBtn').addEventListener('click', async () => {
+      await fetch('/api/finish', { method: 'POST' });
+      document.body.innerHTML = '<main><h1>Rebooting…</h1><p>You can close this tab.</p></main>';
+    });
+  })();
+  </script>
+</body>
+</html>
