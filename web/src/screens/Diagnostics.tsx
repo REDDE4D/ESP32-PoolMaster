@@ -3,6 +3,7 @@ import { poolState } from '../stores/state';
 import { apiGet, apiSendCommand } from '../lib/api';
 import { fmtBytes, fmtDuration, fmtInt } from '../lib/format';
 import { Badge } from '../components/Badge';
+import { LedPanel } from '../components/LedPanel';
 import { SectionTabs, TABS_INSIGHTS } from '../components/SectionTabs';
 
 interface I2cScan {
@@ -50,6 +51,8 @@ export function Diagnostics() {
     <div class="space-y-4 max-w-3xl">
       <SectionTabs current="/insights/diagnostics" tabs={TABS_INSIGHTS} />
       <h1 class="text-xl font-bold">Diagnostics</h1>
+
+      <LedPanel />
 
       <div class="glass p-5">
         <h2 class="font-semibold mb-2">Device</h2>
