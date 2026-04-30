@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
 
 - [ ] **Step 3: Run the smoke test**
 
-Run: `pio test -e native -f test_smoke`
+Run: `pio test -e native -f "native/test_smoke"`
 Expected: `1 Tests 0 Failures 0 Ignored OK`. If `clang` isn't found, install Xcode CLT (`xcode-select --install`).
 
 - [ ] **Step 4: Verify production firmware build still works**
@@ -304,7 +304,7 @@ int main(int argc, char** argv) {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pio test -e native -f test_presets`
+Run: `pio test -e native -f "native/test_presets"`
 Expected: link error — `Presets::isInActiveWindow` not defined.
 
 - [ ] **Step 3: Create `src/PresetsLogic.cpp` with the implementation**
@@ -335,7 +335,7 @@ Window computeAutoTempWindow(double, double, double, uint8_t, uint8_t, uint8_t) 
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pio test -e native -f test_presets`
+Run: `pio test -e native -f "native/test_presets"`
 Expected: `7 Tests 0 Failures 0 Ignored OK`.
 
 - [ ] **Step 5: Commit**
@@ -418,7 +418,7 @@ Also add the `RUN_TEST` lines inside `main`:
 
 - [ ] **Step 2: Run the tests to verify the new ones fail**
 
-Run: `pio test -e native -f test_presets`
+Run: `pio test -e native -f "native/test_presets"`
 Expected: 5 new tests fail with "Expected ..., Was 0" because `computeAutoTempWindow` returns `{0,0,false}`.
 
 - [ ] **Step 3: Replace the stub with the real implementation**
@@ -437,7 +437,12 @@ Window computeAutoTempWindow(double tempValue,
     else if (tempValue < waterTempSetPoint)       duration_h = (int)(tempValue / 3.0 + 0.5);
     else                                          duration_h = (int)(tempValue / 2.0 + 0.5);
 
-    int start_h = (int)centerHour - (duration_h / 2);
+    // Round-half-up of duration_h/2 to match legacy behavior in
+    // PoolMaster.cpp:136 (`(int)round(FiltrationDuration / 2.)`). For an
+    // odd duration like 7, half_dur = 4 (not 3), so a 7h window centered
+    // at 15:00 is 11:00–18:00, not 12:00–19:00.
+    int half_dur = (duration_h + 1) / 2;
+    int start_h  = (int)centerHour - half_dur;
     if (start_h < (int)startMinHour) start_h = (int)startMinHour;
     if (start_h > (int)stopMaxHour - 1) start_h = (int)stopMaxHour - 1;
 
@@ -454,8 +459,8 @@ Window computeAutoTempWindow(double tempValue,
 
 - [ ] **Step 4: Run the tests to verify all pass**
 
-Run: `pio test -e native -f test_presets`
-Expected: `12 Tests 0 Failures 0 Ignored OK`.
+Run: `pio test -e native -f "native/test_presets"`
+Expected: `13 Tests 0 Failures 0 Ignored OK`.
 
 - [ ] **Step 5: Commit**
 
@@ -584,8 +589,8 @@ Expected: `[SUCCESS]` and a tiny size increase (~few hundred bytes flash).
 
 - [ ] **Step 3: Verify the native unit tests still pass**
 
-Run: `pio test -e native -f test_presets`
-Expected: `12 Tests 0 Failures 0 Ignored OK`. (The new module includes Arduino.h, so it can't be linked in the native env — but the pure-function test target only includes `PresetsLogic.cpp`, so it stays green.)
+Run: `pio test -e native -f "native/test_presets"`
+Expected: `13 Tests 0 Failures 0 Ignored OK`. (The new module includes Arduino.h, so it can't be linked in the native env — but the pure-function test target only includes `PresetsLogic.cpp`, so it stays green.)
 
 - [ ] **Step 4: Commit**
 
@@ -781,8 +786,8 @@ Expected: `[SUCCESS]`. Flash usage should still be under 90%.
 
 - [ ] **Step 6: Verify native tests still pass**
 
-Run: `pio test -e native -f test_presets`
-Expected: `12 Tests 0 Failures 0 Ignored OK`.
+Run: `pio test -e native -f "native/test_presets"`
+Expected: `13 Tests 0 Failures 0 Ignored OK`.
 
 - [ ] **Step 7: Commit**
 
@@ -1937,8 +1942,8 @@ Expected: `[bundle-size] OK: <NN> KB of JS`.
 
 - [ ] **Step 4: Run native tests one more time**
 
-Run: `pio test -e native -f test_presets`
-Expected: `12 Tests 0 Failures 0 Ignored OK`.
+Run: `pio test -e native -f "native/test_presets"`
+Expected: `13 Tests 0 Failures 0 Ignored OK`.
 
 - [ ] **Step 5: Commit**
 
