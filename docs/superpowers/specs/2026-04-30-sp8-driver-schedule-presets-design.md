@@ -282,7 +282,9 @@ Acks use the standard `{type:"ack", id, ok, error?}` reply pattern.
 
 | Topic                                          | Retained | Payload                                  | Triggered by                                      |
 |------------------------------------------------|----------|------------------------------------------|---------------------------------------------------|
-| `homeassistant/<device>/active_preset/state`   | yes      | `{"slot": 0, "name": "Auto-temp"}`       | `activate`, `savePreset` of active slot, boot     |
+| `poolmaster/<deviceid>/active_preset/state`    | yes      | `{"slot": 0, "name": "Auto-temp"}`       | `activate`, `savePreset` of active slot, boot     |
+
+(The HA discovery config — pointing to that state topic — is published once to `homeassistant/sensor/poolmaster_<deviceid>_active_preset/config`, matching the existing entity layout in `HaDiscovery.cpp`.)
 
 A discovery config for this topic is added to `HaDiscovery.cpp` so Home Assistant exposes a sensor entity for the active preset name.
 
