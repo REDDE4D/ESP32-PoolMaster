@@ -28,6 +28,19 @@ export function bootstrapStores() {
         });
         break;
 
+      case 'logs': {
+        // Batched initial dump from the server — replaces the per-entry
+        // 'log' frames sent by older firmware so a reconnect doesn't blast
+        // 128 separate frames into AsyncTCP.
+        const entries = Array.isArray(msg.entries) ? msg.entries : [];
+        replaceLogs(entries.map(e => ({
+          ts: Number((e as LogEntry).ts),
+          level: String((e as LogEntry).level),
+          msg: String((e as LogEntry).msg),
+        })));
+        break;
+      }
+
       case 'history': {
         const name = msg.series as SeriesName;
         if (Array.isArray(msg.append)) {

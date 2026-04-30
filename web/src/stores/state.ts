@@ -36,6 +36,7 @@ export interface PoolState {
     winter: boolean;
     ph_pid: boolean;
     orp_pid: boolean;
+    antifreeze: boolean;
   };
   alarms: {
     pressure: boolean;

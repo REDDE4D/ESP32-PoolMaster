@@ -148,10 +148,14 @@ bool saveConfig()
 
 // functions to save any type of parameter (4 overloads with same name but different arguments)
 
+// Each overload must pair nvs.begin with nvs.end. Without the end, the
+// namespace handle is leaked and subsequent putXxx calls (here or in
+// saveConfig/loadConfig) can silently write 0 bytes.
 bool saveParam(const char* key, uint8_t val)
 {
   nvs.begin("PoolMaster",false);
   size_t i = nvs.putUChar(key,val);
+  nvs.end();
   return(i == sizeof(val));
 }
 
@@ -159,6 +163,7 @@ bool saveParam(const char* key, bool val)
 {
   nvs.begin("PoolMaster",false);
   size_t i = nvs.putBool(key,val);
+  nvs.end();
   return(i == sizeof(val));
 }
 
@@ -166,6 +171,7 @@ bool saveParam(const char* key, unsigned long val)
 {
   nvs.begin("PoolMaster",false);
   size_t i = nvs.putULong(key,val);
+  nvs.end();
   return(i == sizeof(val));
 }
 
@@ -173,5 +179,6 @@ bool saveParam(const char* key, double val)
 {
   nvs.begin("PoolMaster",false);
   size_t i = nvs.putDouble(key,val);
+  nvs.end();
   return(i == sizeof(val));
 }

@@ -11,7 +11,7 @@ SMTP_Message message;
 
 // Functions prototypes
 
-void readLocalTime(void);
+bool readLocalTime(void);
 bool saveParam(const char*,uint8_t );
 bool saveParam(const char*,bool );
 bool saveParam(const char*,unsigned long );
@@ -101,11 +101,18 @@ void PoolMaster(void *pvParameters)
       ChlPump.SetTankFill(storage.ChlFill);
       RobotPump.ResetUpTime();
       EmergencyStopFiltPump = false;
+      // PSIError can latch via the 45-s startup check (line ~211) or the
+      // over-pressure check (line ~219). The auto-clear branch only fires
+      // when PSI is in [PSI_Med, PSI_High], but with the pump idle pressure
+      // sits below that band — so a single transient low reading locks the
+      // schedule out indefinitely. Clear at midnight; if there's a real
+      // fault the next start will re-latch within 45 s.
+      PSIError = false;
       d_calc = false;
       DoneForTheDay = true;
       cleaning_done = false;
-      readLocalTime();
-      setTime(timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec,timeinfo.tm_mday,timeinfo.tm_mon+1,timeinfo.tm_year-100);
+      if (readLocalTime())
+        setTime(timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec,timeinfo.tm_mday,timeinfo.tm_mon+1,timeinfo.tm_year-100);
 
       // Security: if WiFi disconnected in spite of system auto-reconnect, try to restart once a day
       if(WiFi.status() != WL_CONNECTED) esp_restart();

@@ -115,7 +115,7 @@ static SemaphoreHandle_t mutex;
 
 // Functions prototypes
 void StartTime(void);
-void readLocalTime(void);
+bool readLocalTime(void);
 void InitTFT(void);
 void ResetTFT(void);
 void PublishSettings(void);
@@ -297,8 +297,14 @@ void setup()
   // to pass arguments to setTime which needs months from 1 to 12 and years from 2000...
   // DST (Daylight Saving Time) is managed automatically
   StartTime();
-  readLocalTime();
-  setTime(timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec,timeinfo.tm_mday,timeinfo.tm_mon+1,timeinfo.tm_year-100);
+  // Only seed the Time library from NTP if the SNTP fetch actually
+  // succeeded — otherwise timeinfo holds zeros (or stale values) and we'd
+  // jump the clock to year 2000, which then breaks the schedule window
+  // until the next successful midnight resync.
+  if (readLocalTime())
+    setTime(timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec,timeinfo.tm_mday,timeinfo.tm_mon+1,timeinfo.tm_year-100);
+  else
+    Debug.print(DBG_WARNING,"NTP unavailable at boot — schedule disabled until next sync");
   Debug.print(DBG_INFO,"%d/%02d/%02d %02d:%02d:%02d",year(),month(),day(),hour(),minute(),second());
 
   // Initialize the mDNS library.
@@ -580,11 +586,13 @@ void StartTime(){
   Debug.print(DBG_INFO,"NTP configured");
 }
 
-void readLocalTime(){
+bool readLocalTime(){
   if(!getLocalTime(&timeinfo,5000U)){
     Debug.print(DBG_WARNING,"Failed to obtain time");
+    return false;
   }
   Serial.println(&timeinfo,"%A, %B %d %Y %H:%M:%S");
+  return true;
 }
 
 // Notify PublishSettings task 

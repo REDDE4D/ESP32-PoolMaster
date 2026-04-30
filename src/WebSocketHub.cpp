@@ -123,10 +123,11 @@ static String buildStateJson() {
   relays["r1"] = dR1 ? dR1->get() : false;
 
   JsonObject modes = data["modes"].to<JsonObject>();
-  modes["auto"]    = storage.AutoMode;
-  modes["winter"]  = storage.WinterMode;
-  modes["ph_pid"]  = (PhPID.GetMode() == AUTOMATIC);
-  modes["orp_pid"] = (OrpPID.GetMode() == AUTOMATIC);
+  modes["auto"]       = storage.AutoMode;
+  modes["winter"]     = storage.WinterMode;
+  modes["ph_pid"]     = (PhPID.GetMode() == AUTOMATIC);
+  modes["orp_pid"]    = (OrpPID.GetMode() == AUTOMATIC);
+  modes["antifreeze"] = AntiFreezeFiltering;
 
   JsonObject al = data["alarms"].to<JsonObject>();
   al["pressure"]          = PSIError;
@@ -179,10 +180,17 @@ static String buildStateJson() {
   return out;
 }
 
+// Skip the dump if AsyncTCP is already backlogged. During a tab-resume
+// reconnect storm, a saturated send queue is what fragments the heap and
+// eventually panics the device — better to drop a snapshot than to push
+// frames into a queue we know won't drain.
+static constexpr uint16_t INITIAL_DUMP_QUEUE_CEILING = 8;
+
 static void sendHistoryInitial(AsyncWebSocketClient* client) {
   float buf[HistoryBuffer::CAPACITY];
   uint64_t t0 = 0;
   for (uint8_t s = 0; s < HistoryBuffer::SERIES_COUNT; ++s) {
+    if (client->queueLen() > INITIAL_DUMP_QUEUE_CEILING) return;
     uint16_t n = HistoryBuffer::snapshot((HistoryBuffer::Series)s, buf, &t0);
     if (n == 0) continue;
     JsonDocument d;
@@ -198,19 +206,26 @@ static void sendHistoryInitial(AsyncWebSocketClient* client) {
   }
 }
 
+// Single-frame batched delivery. The previous version emitted one WS frame
+// per log entry (up to 128 frames), which blew through the AsyncTCP send
+// queue under reconnect-storm conditions.
 static void sendLogsInitial(AsyncWebSocketClient* client) {
+  if (client->queueLen() > INITIAL_DUMP_QUEUE_CEILING) return;
   static LogBuffer::Entry entries[128];
   uint16_t n = LogBuffer::snapshot(entries, 128);
+  if (n == 0) return;
+  JsonDocument d;
+  d["type"] = "logs";
+  JsonArray arr = d["entries"].to<JsonArray>();
   for (uint16_t i = 0; i < n; ++i) {
-    JsonDocument d;
-    d["type"]  = "log";
-    d["ts"]    = entries[i].ts_ms;
-    d["level"] = LogBuffer::levelStr(entries[i].level);
-    d["msg"]   = entries[i].msg;
-    String out;
-    serializeJson(d, out);
-    client->text(out);
+    JsonObject o = arr.add<JsonObject>();
+    o["ts"]    = entries[i].ts_ms;
+    o["level"] = LogBuffer::levelStr(entries[i].level);
+    o["msg"]   = entries[i].msg;
   }
+  String out;
+  serializeJson(d, out);
+  client->text(out);
 }
 
 static void sendWelcome(AsyncWebSocketClient* client) {
@@ -254,8 +269,10 @@ static void onClientEvent(AsyncWebSocket* srv, AsyncWebSocketClient* client,
       Debug.print(DBG_INFO, "[WS] client %u connected from %s",
                   client->id(), client->remoteIP().toString().c_str());
       LogBuffer::append(LogBuffer::L_INFO, "[WS] client %u connected", client->id());
+      // Welcome only — the state seed (and any logs/history backlog) is
+      // deferred to the hello handler so we don't blast a heavy payload
+      // into AsyncTCP for a connection that may already be flapping.
       sendWelcome(client);
-      client->text(buildStateJson());  // immediate state seed
       break;
     }
     case WS_EVT_DISCONNECT: {
@@ -280,6 +297,7 @@ static void onClientEvent(AsyncWebSocket* srv, AsyncWebSocketClient* client,
       if (strcmp(type, "hello") == 0 && slot >= 0) {
         JsonArrayConst subs = msg["subs"].as<JsonArrayConst>();
         setSubsFromArray(slot, subs);
+        if (g_subs[slot] & SUB_STATE)   client->text(buildStateJson());
         if (g_subs[slot] & SUB_LOGS)    sendLogsInitial(client);
         if (g_subs[slot] & SUB_HISTORY) sendHistoryInitial(client);
       }
