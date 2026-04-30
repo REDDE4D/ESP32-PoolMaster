@@ -60,6 +60,58 @@ void test_edges_at_midnight_boundaries(void) {
     TEST_ASSERT_FALSE(isInActiveWindow(d, 1439));
 }
 
+void test_autotemp_cold_uses_2h_duration(void) {
+    // tempValue < lowThreshold → fixed 2h duration centered on centerHour
+    Window w = computeAutoTempWindow(
+        /*temp*/ 5.0, /*low*/ 10.0, /*setpoint*/ 27.0,
+        /*center*/ 15, /*startMin*/ 8, /*stopMax*/ 22);
+    TEST_ASSERT_TRUE(w.enabled);
+    TEST_ASSERT_EQUAL_UINT16(14 * 60, w.start_min);   // 14:00
+    TEST_ASSERT_EQUAL_UINT16(16 * 60, w.end_min);     // 16:00
+}
+
+void test_autotemp_mid_uses_temp_div3(void) {
+    // tempValue in [low, setpoint) → duration = round(temp/3)
+    // temp=24 → duration=8h, start=15-4=11, stop=11+8=19
+    Window w = computeAutoTempWindow(
+        24.0, 10.0, 27.0, 15, 8, 22);
+    TEST_ASSERT_EQUAL_UINT16(11 * 60, w.start_min);
+    TEST_ASSERT_EQUAL_UINT16(19 * 60, w.end_min);
+}
+
+void test_autotemp_warm_uses_temp_div2(void) {
+    // tempValue >= setpoint → duration = round(temp/2)
+    // temp=28 → duration=14h, start=clamp(15-7,8,21)=8, stop=min(8+14,22)=22
+    Window w = computeAutoTempWindow(
+        28.0, 10.0, 27.0, 15, 8, 22);
+    TEST_ASSERT_EQUAL_UINT16(8 * 60,  w.start_min);
+    TEST_ASSERT_EQUAL_UINT16(22 * 60, w.end_min);
+}
+
+void test_autotemp_clamps_start_to_startminhour(void) {
+    // duration=20h, start=15-10=5 → clamp up to startMinHour=8
+    Window w = computeAutoTempWindow(
+        40.0, 10.0, 27.0, 15, 8, 22);
+    TEST_ASSERT_EQUAL_UINT16(8 * 60, w.start_min);
+}
+
+void test_autotemp_clamps_stop_to_stopmaxhour(void) {
+    // start clamped to 8, duration=20, stop would be 28 → clamp to 22
+    Window w = computeAutoTempWindow(
+        40.0, 10.0, 27.0, 15, 8, 22);
+    TEST_ASSERT_EQUAL_UINT16(22 * 60, w.end_min);
+}
+
+void test_autotemp_odd_duration_rounds_half_up(void) {
+    // tempValue=20 in mid band → duration = round(20/3) = 7
+    // half_dur = 4 (round-half-up); start = 15 - 4 = 11; stop = 11 + 7 = 18
+    // Locks down legacy parity with PoolMaster.cpp:136 round() behavior.
+    Window w = computeAutoTempWindow(
+        20.0, 10.0, 27.0, 15, 8, 22);
+    TEST_ASSERT_EQUAL_UINT16(11 * 60, w.start_min);
+    TEST_ASSERT_EQUAL_UINT16(18 * 60, w.end_min);
+}
+
 int main(int argc, char** argv) {
     UNITY_BEGIN();
     RUN_TEST(test_no_enabled_windows_returns_false);
@@ -69,5 +121,11 @@ int main(int argc, char** argv) {
     RUN_TEST(test_disabled_window_does_not_match);
     RUN_TEST(test_multiple_windows_any_match_returns_true);
     RUN_TEST(test_edges_at_midnight_boundaries);
+    RUN_TEST(test_autotemp_cold_uses_2h_duration);
+    RUN_TEST(test_autotemp_mid_uses_temp_div3);
+    RUN_TEST(test_autotemp_warm_uses_temp_div2);
+    RUN_TEST(test_autotemp_clamps_start_to_startminhour);
+    RUN_TEST(test_autotemp_clamps_stop_to_stopmaxhour);
+    RUN_TEST(test_autotemp_odd_duration_rounds_half_up);
     return UNITY_END();
 }
