@@ -1,5 +1,32 @@
 import { signal } from '@preact/signals';
 
+export type PresetType = 'manual' | 'auto_temp';
+
+export interface PresetWindow {
+  start: number;       // minutes-of-day, 0..1439
+  end: number;         // minutes-of-day, 0..1439
+  enabled: boolean;
+}
+
+export interface AutoTempBounds {
+  startMinHour: number;     // 0..23
+  stopMaxHour: number;      // 0..23
+  centerHour: number;       // 0..23
+}
+
+export interface PresetSlot {
+  slot: number;
+  name: string;
+  type: PresetType;
+  windows: PresetWindow[];          // always length 4
+  auto: AutoTempBounds | null;      // null when type === 'manual'
+}
+
+export interface SchedulePayload {
+  active_slot: number;
+  presets: PresetSlot[];            // always length 5
+}
+
 export interface PoolState {
   measurements: {
     ph: number;
@@ -63,6 +90,7 @@ export interface PoolState {
     port: number;
     last_disconnect_code: number;  // -1 = never; >=0 = espMqttClient DisconnectReason
   };
+  schedule: SchedulePayload;
 }
 
 export const poolState = signal<PoolState | null>(null);
