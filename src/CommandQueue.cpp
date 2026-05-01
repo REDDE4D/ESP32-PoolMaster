@@ -7,6 +7,7 @@
 #include "PoolMaster.h"
 #include "MqttBridge.h"   // connectToMqtt() / stopMqttReconnectTimer() for MqttReconnect command
 #include "Drivers.h"
+#include "Presets.h"
 #include "OutputDriver.h"
 #include "Credentials.h"
 #include <espMqttClientAsync.h>
@@ -547,6 +548,52 @@ void ProcessCommand(void *pvParameters)
           //start filtration pump if within scheduled time slots
           if (!EmergencyStopFiltPump && storage.AutoMode && (hour() >= storage.FiltrationStart) && (hour() < storage.FiltrationStop))
             FiltrationPump.Start();
+        }
+        else if (command[F("PresetActivate")].is<JsonVariant>())
+        {
+          uint8_t s = command[F("PresetActivate")][F("slot")] | 0xFF;
+          if (s < Presets::MAX_PRESETS) Presets::activate(s);
+        }
+        else if (command[F("PresetDelete")].is<JsonVariant>())
+        {
+          uint8_t s = command[F("PresetDelete")][F("slot")] | 0xFF;
+          if (s < Presets::MAX_PRESETS) Presets::clearPreset(s);
+        }
+        else if (command[F("PresetSave")].is<JsonVariant>())
+        {
+          JsonObject o = command[F("PresetSave")];
+          uint8_t s = o[F("slot")] | 0xFF;
+          if (s < Presets::MAX_PRESETS) {
+            Presets::PresetData d{};
+            const char* name = o[F("name")] | "";
+            strncpy(d.name, name, Presets::NAME_MAX_LEN - 1);
+            const char* tStr = o[F("presetType")] | "manual";
+            d.type = (strcmp(tStr, "auto_temp") == 0) ? Presets::Type::AutoTemp : Presets::Type::Manual;
+
+            JsonArray ws = o[F("windows")].as<JsonArray>();
+            uint8_t i = 0;
+            for (JsonObject w : ws) {
+              if (i >= Presets::WINDOWS_PER) break;
+              d.windows[i].start_min = w[F("start")] | 0;
+              d.windows[i].end_min   = w[F("end")]   | 0;
+              d.windows[i].enabled   = w[F("enabled")] | false;
+              ++i;
+            }
+            while (i < Presets::WINDOWS_PER) { d.windows[i++] = { 0, 0, false }; }
+
+            JsonObject autoBlk = o[F("auto")].as<JsonObject>();
+            if (!autoBlk.isNull()) {
+              d.startMinHour = autoBlk[F("startMinHour")] | 8;
+              d.stopMaxHour  = autoBlk[F("stopMaxHour")]  | 22;
+              d.centerHour   = autoBlk[F("centerHour")]   | 15;
+            } else {
+              d.startMinHour = 8;
+              d.stopMaxHour  = 22;
+              d.centerHour   = 15;
+            }
+
+            Presets::savePreset(s, d);
+          }
         }
         //Publish Update on the MQTT broker the status of our variables
         PublishMeasures();

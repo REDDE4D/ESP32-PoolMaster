@@ -39,7 +39,7 @@ extern StoreStruct storage;
 
 //Queue object to store incoming JSON commands (up to 10)
 #define QUEUE_ITEMS_NBR 10
-#define QUEUE_ITEM_SIZE 100
+#define QUEUE_ITEM_SIZE 256
 extern QueueHandle_t queueIn;
 
 //The four pumps of the system (instanciate the Pump class)
