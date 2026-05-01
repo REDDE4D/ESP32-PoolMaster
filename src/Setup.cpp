@@ -15,6 +15,7 @@
 #include "WebSocketHub.h"
 #include "Drivers.h"
 #include "LogBuffer.h"
+#include "Presets.h"
 
 #ifdef SIMU
 bool init_simu = true;
@@ -210,6 +211,8 @@ void setup()
 
   LogBuffer::begin();
 
+  Presets::begin();
+
   // Boot / crash stats — increment counter and read previous session's final uptime so
   // the Diagnostics page can show "last session lasted N seconds before reset_reason X".
   {
@@ -377,8 +380,8 @@ void setup()
   ChlPump.SetMaxUpTime(storage.ChlPumpUpTimeLimit * 1000);
 
   // Start filtration pump at power-on if within scheduled time slots -- You can choose not to do this and start pump manually
-  if (storage.AutoMode && (hour() >= storage.FiltrationStart) && (hour() < storage.FiltrationStop))
-    FiltrationPump.Start();
+  uint16_t now_min = (uint16_t)(hour() * 60 + minute());
+  if (storage.AutoMode && Presets::isInActiveWindow(now_min)) FiltrationPump.Start();
   else FiltrationPump.Stop();
 
   // Robot pump off at start
