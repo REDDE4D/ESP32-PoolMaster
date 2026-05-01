@@ -329,18 +329,6 @@ void ProcessCommand(void *pvParameters)
         {
           setTime((uint8_t)command[F("Date")][4], (uint8_t)command[F("Date")][5], (uint8_t)command[F("Date")][6], (uint8_t)command[F("Date")][0], (uint8_t)command[F("Date")][2], (uint8_t)command[F("Date")][3]); //(Day of the month, Day of the week, Month, Year, Hour, Minute, Second)
         }
-        else if (command[F("FiltT0")].is<JsonVariant>()) //"FiltT0" command which sets the earliest hour when starting Filtration pump
-        {
-          storage.FiltrationStartMin = (unsigned int)command[F("FiltT0")];
-          saveParam("FiltrStartMin",storage.FiltrationStartMin);
-          PublishSettings();
-        }
-        else if (command[F("FiltT1")].is<JsonVariant>()) //"FiltT1" command which sets the latest hour for running Filtration pump
-        {
-          storage.FiltrationStopMax = (unsigned int)command[F("FiltT1")];
-          saveParam("FiltrStopMax",storage.FiltrationStopMax);
-          PublishSettings();
-        }
         else if (command[F("PubPeriod")].is<JsonVariant>()) //"PubPeriod" command which sets the periodicity for publishing system info to MQTT broker
         {
           storage.PublishPeriod = (unsigned long)command[F("PubPeriod")] * 1000; //in secs
