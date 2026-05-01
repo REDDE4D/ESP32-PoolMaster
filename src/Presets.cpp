@@ -165,7 +165,7 @@ static void seedDefaults() {
     resetSlotToEmptyManual(i, name);
   }
   g_active = 0;
-  save();    // writes back without emitting (g_onChange not yet wired at this point)
+  save();    // writes back; primary/secondary onChange callbacks are still null at this point
 }
 
 void begin() {
