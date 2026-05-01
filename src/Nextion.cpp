@@ -12,6 +12,7 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "PoolMaster.h"
+#include "Presets.h"
 #include "EasyNextionLibrary.h"
 
 static volatile int CurrentPage = 0;
@@ -91,8 +92,18 @@ void UpdateTFT()
     sprintf(HourBuffer, PSTR("%02d:%02d:%02d"), hour(), minute(), second());
     myNex.writeStr(F("page0.vaTime.txt"),HourBuffer);
     myNex.writeNum(F("page0.vaNetW.val"),MQTTConnection ? 1:0);
-    snprintf_P(temp,sizeof(temp),PSTR("%02d/%02dh"),storage.FiltrationStart,storage.FiltrationStop);
-    myNex.writeStr(F("page0.vaStaSto.txt"),temp);
+    {
+      const Presets::PresetData& p = Presets::slot(Presets::activeSlot());
+      const Presets::Window* w = nullptr;
+      for (uint8_t i = 0; i < Presets::WINDOWS_PER; ++i) {
+        if (p.windows[i].enabled) { w = &p.windows[i]; break; }
+      }
+      if (w)
+        snprintf_P(temp,sizeof(temp),PSTR("%02d/%02dh"), w->start_min / 60, w->end_min / 60);
+      else
+        snprintf_P(temp,sizeof(temp),PSTR("--/--h"));
+      myNex.writeStr(F("page0.vaStaSto.txt"),temp);
+    }
     if(TFT_Automode != storage.AutoMode) 
     { myNex.writeNum(F("page0.vaMode.val"),storage.AutoMode);
       TFT_Automode = storage.AutoMode;}
