@@ -1,3 +1,14 @@
+## 🗓️ SP8 Driver Schedule Presets (2026-05)
+
+**SP8 — Driver schedule presets**: Five named presets, each with up to four configurable timeslots, replace the single hard-coded filtration window. Switch profiles ("Summer", "Vacation", "Maintenance", etc.) from the dashboard — the active preset persists across reboots and is published over MQTT for Home Assistant. The legacy `auto-temp` behavior survives as the type for slot 0; existing devices upgrade in place via a CONFIG_VERSION 51 → 52 migration that rescues `FiltrStart/Stop/StartMin/StopMax` into the new layout.
+
+### Firmware size — post-SP8
+
+**Flash 85.4 %** (1 287 793 of 1 507 328 bytes) · **RAM 23.7 %** (77 540 of 327 680 bytes).
+Down from SP5's 99.2 % Flash after architectural refactoring across SP6–SP8 reclaimed ~207 KB.
+
+---
+
 ## ➕ SP5 Custom User-Defined Output Switches (2026-04)
 
 On top of the six fixed physical-output slots from SP4, up to **8 user-defined custom
