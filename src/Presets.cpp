@@ -1,4 +1,5 @@
 #include "Presets.h"
+#include "PoolMaster.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <string.h>
@@ -85,7 +86,20 @@ bool clearPreset(uint8_t target) {
 }
 
 void tickDailyAutoTemp() {
-  // Stub — implemented in Task 9 once water-temp storage is reachable.
+  PresetData& d = g_slots[g_active];
+  if (d.type != Type::AutoTemp) return;
+
+  Window w = computeAutoTempWindow(
+    storage.TempValue,
+    storage.WaterTempLowThreshold,
+    storage.WaterTemp_SetPoint,
+    d.centerHour,
+    d.startMinHour,
+    d.stopMaxHour);
+
+  d.windows[0] = w;
+  for (uint8_t i = 1; i < WINDOWS_PER; ++i) d.windows[i] = { 0, 0, false };
+  save();
 }
 
 void save() {

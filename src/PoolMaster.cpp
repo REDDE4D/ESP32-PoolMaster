@@ -30,7 +30,6 @@ void Send_Email(void);
 void PoolMaster(void *pvParameters)
 {
   bool DoneForTheDay = false;                     // Reset actions done once per day
-  bool d_calc = false;                            // Filtration duration computed
 
   static UBaseType_t hwm=0;                       // free stack size
 
@@ -111,11 +110,11 @@ void PoolMaster(void *pvParameters)
       // schedule out indefinitely. Clear at midnight; if there's a real
       // fault the next start will re-latch within 45 s.
       PSIError = false;
-      d_calc = false;
       DoneForTheDay = true;
       cleaning_done = false;
       if (readLocalTime())
         setTime(timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec,timeinfo.tm_mday,timeinfo.tm_mon+1,timeinfo.tm_year-100);
+      Presets::tickDailyAutoTemp();    // ← recompute AutoTemp window once per day
 
       // Security: if WiFi disconnected in spite of system auto-reconnect, try to restart once a day
       if(WiFi.status() != WL_CONNECTED) esp_restart();
@@ -125,44 +124,6 @@ void PoolMaster(void *pvParameters)
     {
       DoneForTheDay = false;
     }
-
-    // Compute next Filtering duration and start/stop hours at 15:00 (to filter during the hotest period of the day)
-    // Wait at least 5mn after filtration start in order to let the temperature stabilizes in pipes, and to avoid
-    // taking into account not yet measured temperature if the system starts at 15:xx. 
-    // Depending on water temperature, the filtration duration is either 2 hours, temp/3 or temp/2 hours.
-    #ifdef DEBUG
-    if (second() == 0 && (millis() - FiltrationPump.LastStartTime) > 300000 && !d_calc)
-    #else
-    if (hour() == 15 && (millis() - FiltrationPump.LastStartTime) > 300000 && !d_calc)
-    #endif
-    {
-        if (storage.TempValue < storage.WaterTempLowThreshold){
-            storage.FiltrationDuration = 2;}
-        else if (storage.TempValue >= storage.WaterTempLowThreshold && storage.TempValue < storage.WaterTemp_SetPoint){
-            storage.FiltrationDuration = round(storage.TempValue / 3.);}
-        else if (storage.TempValue >= storage.WaterTemp_SetPoint){
-            storage.FiltrationDuration = round(storage.TempValue / 2.);}
-    
-        storage.FiltrationStart = 15 - (int)round(storage.FiltrationDuration / 2.);
-        if (storage.FiltrationStart < storage.FiltrationStartMin)
-        storage.FiltrationStart = storage.FiltrationStartMin;    
-        storage.FiltrationStop = storage.FiltrationStart + storage.FiltrationDuration;
-        if (storage.FiltrationStop > storage.FiltrationStopMax)
-        storage.FiltrationStop = storage.FiltrationStopMax;
-
-        saveParam("FiltrStart",storage.FiltrationStart);  
-        saveParam("FiltrStop",storage.FiltrationStop);  
-
-        Debug.print(DBG_INFO,"Filtration duration: %dh",storage.FiltrationDuration);
-        Debug.print(DBG_INFO,"Start: %dh - Stop: %dh",storage.FiltrationStart,storage.FiltrationStop);
-
-        PublishSettings();
-
-        d_calc = true;
-    }
-    #ifdef DEBUG
-    if(second() == 30 && d_calc) d_calc = false;
-    #endif
 
     //start filtration pump as scheduled
     if (!EmergencyStopFiltPump && !FiltrationPump.IsRunning() && storage.AutoMode &&
