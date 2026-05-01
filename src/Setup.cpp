@@ -192,7 +192,8 @@ void setup()
     }
     else
     {
-      Debug.print(DBG_INFO,"New version: %d / %d. Loading new default settings",vers,CONFIG_VERSION);      
+      Debug.print(DBG_INFO,"New version: %d / %d. Loading new default settings",vers,CONFIG_VERSION);
+      preserveCalibrationsAcrossUpgrade();   // rescue user calibration before overwrite
       if(saveConfig()) Debug.print(DBG_INFO,"Config saved");  //First time use. Save new default values to NVS
     }
 

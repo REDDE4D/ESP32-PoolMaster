@@ -1,10 +1,13 @@
 #include "Presets.h"
 #include <Arduino.h>
+#include <Preferences.h>
 #include <string.h>
 
 namespace Presets {
 
 namespace {
+  static constexpr const char* NS = "presets";
+
   PresetData g_slots[MAX_PRESETS];
   uint8_t    g_active = 0;
   OnChangeCb g_onChange = nullptr;
@@ -85,21 +88,70 @@ void tickDailyAutoTemp() {
   // Stub — implemented in Task 9 once water-temp storage is reachable.
 }
 
-void begin() {
-  // Stub — populated in Task 6 once NVS load lands. For now, seed in-RAM
-  // defaults so unit-test-style firmware bring-up is sane.
+void save() {
+  Preferences p;
+  p.begin(NS, false);
+  p.putUChar("active", g_active);
   for (uint8_t i = 0; i < MAX_PRESETS; ++i) {
-    char name[NAME_MAX_LEN];
-    snprintf(name, sizeof(name), (i == 0) ? "Auto-temp" : "Preset %u", (unsigned)(i + 1));
-    resetSlotToEmptyManual(i, name);
-    if (i == 0) g_slots[i].type = Type::AutoTemp;
+    char key[8];
+    snprintf(key, sizeof(key), "slot%u", (unsigned)i);
+    p.putBytes(key, &g_slots[i], sizeof(PresetData));
   }
-  g_active = 0;
+  p.end();
+  emitChange();
 }
 
-void save() {
-  // Stub — implemented in Task 6.
-  emitChange();
+static bool loadFromNVS() {
+  Preferences p;
+  p.begin(NS, true);
+  bool foundAny = false;
+  for (uint8_t i = 0; i < MAX_PRESETS; ++i) {
+    char key[8];
+    snprintf(key, sizeof(key), "slot%u", (unsigned)i);
+    size_t got = p.getBytes(key, &g_slots[i], sizeof(PresetData));
+    if (got == sizeof(PresetData)) foundAny = true;
+    else {
+      // Corrupt or missing — reset to a safe empty manual.
+      char fallback[NAME_MAX_LEN];
+      snprintf(fallback, sizeof(fallback), "Preset %u", (unsigned)(i + 1));
+      resetSlotToEmptyManual(i, fallback);
+    }
+  }
+  g_active = p.getUChar("active", 0);
+  if (g_active >= MAX_PRESETS) g_active = 0;
+  p.end();
+  return foundAny;
+}
+
+static void seedDefaults() {
+  // Slot 0 — auto-temp, rescued from legacy FiltrStart/Stop in PoolMaster ns.
+  Preferences legacy;
+  legacy.begin("PoolMaster", true);
+  uint8_t fStart    = legacy.getUChar("FiltrStart",    8);
+  uint8_t fStop     = legacy.getUChar("FiltrStop",     20);
+  uint8_t fStartMin = legacy.getUChar("FiltrStartMin", 8);
+  uint8_t fStopMax  = legacy.getUChar("FiltrStopMax",  22);
+  legacy.end();
+
+  resetSlotToEmptyManual(0, "Auto-temp");
+  g_slots[0].type         = Type::AutoTemp;
+  g_slots[0].startMinHour = fStartMin;
+  g_slots[0].stopMaxHour  = fStopMax;
+  g_slots[0].centerHour   = 15;
+  g_slots[0].windows[0]   = { uint16_t(fStart * 60), uint16_t(fStop * 60), true };
+
+  for (uint8_t i = 1; i < MAX_PRESETS; ++i) {
+    char name[NAME_MAX_LEN];
+    snprintf(name, sizeof(name), "Preset %u", (unsigned)(i + 1));
+    resetSlotToEmptyManual(i, name);
+  }
+  g_active = 0;
+  save();    // writes back without emitting (g_onChange not yet wired at this point)
+}
+
+void begin() {
+  bool foundAny = loadFromNVS();
+  if (!foundAny) seedDefaults();
 }
 
 } // namespace Presets

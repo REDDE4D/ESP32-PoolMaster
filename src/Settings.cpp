@@ -7,6 +7,47 @@
 
 extern Preferences nvs;
 
+// Read the six calibration coefficients before a CONFIG_VERSION upgrade
+// rewrites them to defaults, and restore them after. Without this, every
+// version bump resets the user's calibration to seed values.
+namespace {
+  struct CalSnapshot {
+    double phC0, phC1, orpC0, orpC1, psiC0, psiC1;
+  };
+
+  // Defaults must mirror loadConfig() above (pHCalibCoeffs0..PSICalibCoeffs1).
+  // Drift here means a brand-new device hitting the upgrade path with no
+  // prior NVS keys would persist stale defaults instead of the current
+  // calibration baseline. Keep this list and loadConfig's in lockstep.
+  CalSnapshot snapshotCalibrations() {
+    Preferences p;
+    p.begin("PoolMaster", true);
+    CalSnapshot s;
+    s.phC0  = p.getDouble("pHCalibCoeffs0",  4.3);
+    s.phC1  = p.getDouble("pHCalibCoeffs1",  -2.63);
+    s.orpC0 = p.getDouble("OrpCalibCoeffs0", -1189.0);
+    s.orpC1 = p.getDouble("OrpCalibCoeffs1", 2564.0);
+    s.psiC0 = p.getDouble("PSICalibCoeffs0", 1.11);
+    s.psiC1 = p.getDouble("PSICalibCoeffs1", 0.0);
+    p.end();
+    return s;
+  }
+
+  void applyCalibrations(const CalSnapshot& s) {
+    storage.pHCalibCoeffs0  = s.phC0;
+    storage.pHCalibCoeffs1  = s.phC1;
+    storage.OrpCalibCoeffs0 = s.orpC0;
+    storage.OrpCalibCoeffs1 = s.orpC1;
+    storage.PSICalibCoeffs0 = s.psiC0;
+    storage.PSICalibCoeffs1 = s.psiC1;
+  }
+}
+
+void preserveCalibrationsAcrossUpgrade() {
+  CalSnapshot snap = snapshotCalibrations();
+  applyCalibrations(snap);
+}
+
 /* ----- loadConfig, saveConfig, and the 4 saveParam overloads (moved from Setup.cpp) ----- */
 
 bool loadConfig()

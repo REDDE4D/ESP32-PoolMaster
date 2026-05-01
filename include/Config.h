@@ -8,7 +8,7 @@
 #define DEBUG_LEVEL DBG_INFO
 
 // NVS config version — bump to force defaults on next boot
-#define CONFIG_VERSION 51
+#define CONFIG_VERSION 52
 
 #ifdef DEVT
   #define HOSTNAME "PoolMaster_Dev"
