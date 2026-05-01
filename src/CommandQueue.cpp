@@ -545,8 +545,9 @@ void ProcessCommand(void *pvParameters)
 
           mqttErrorPublish(""); // publish clearing of error(s)
 
-          //start filtration pump if within scheduled time slots
-          if (!EmergencyStopFiltPump && storage.AutoMode && (hour() >= storage.FiltrationStart) && (hour() < storage.FiltrationStop))
+          //start filtration pump if within an active preset window
+          uint16_t now_min = (uint16_t)(hour() * 60 + minute());
+          if (!EmergencyStopFiltPump && storage.AutoMode && Presets::isInActiveWindow(now_min))
             FiltrationPump.Start();
         }
         else if (command[F("PresetActivate")].is<JsonVariant>())
