@@ -12,6 +12,35 @@
 
 ---
 
+## Resume point — 2026-05-01
+
+**Tasks 1-6 are complete.** Land the remaining work starting from **Task 7**.
+
+| # | Done | Commit |
+|---|------|--------|
+| 1 | ✅ | `21d3d58` native test env (Unity) + smoke test |
+| 2 | ✅ | `1d9d08a` Presets API headers (PresetsLogic.h + Presets.h) |
+| 3 | ✅ | `e7fb361` TDD `isInActiveWindow` (7 tests) |
+| 4 | ✅ | `77a1eaf` TDD `computeAutoTempWindow` (5 + 1 odd-duration tests, round-half-up parity with legacy) |
+| 5 | ✅ | `c053a0e` Presets in-RAM state + activate/save/clear (incl. hour-bounds + NUL-terminator validation) |
+| 6 | ✅ | `4e9fc73` NVS load/save + seedDefaults + calibration preservation, CONFIG_VERSION 51 → 52 |
+
+**Current state of the world:**
+- 13 native unit tests pass (`pio test -e native -f "native/test_presets"`).
+- Firmware builds clean: `pio run -e OTA_upload` → SUCCESS, Flash 85.1%, RAM 23.6%.
+- `Presets::begin()` exists but is **not yet called** from anywhere — Task 7 wires it in.
+- `Presets::tickDailyAutoTemp()` is still a stub — Task 9 wires it.
+- The schedule-check delegation (Tasks 8) and WS/MQTT/frontend wiring (Tasks 10-17) are untouched.
+
+**Resume instructions for the next session:**
+
+1. Open the project at `/Users/sebastiankuprat/GitHub/ESP32-PoolMaster`.
+2. Confirm clean tree: `git status --short` should show only `.DS_Store` noise.
+3. Re-invoke the subagent-driven workflow on this plan, **starting at Task 7**. The implementer prompts can quote each task verbatim from this file.
+4. Tasks 7-12 are firmware integration; Tasks 13-17 are frontend; Task 18 is README + size record.
+
+---
+
 ## File map
 
 | File | Disposition | Responsibility |
