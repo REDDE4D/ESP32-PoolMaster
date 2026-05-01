@@ -116,7 +116,7 @@ void mqttErrorPublish(const char* payload)
 
 bool enqueueCommand(const char* jsonStr)
 {
-  char buf[100] = "";
+  char buf[QUEUE_ITEM_SIZE] = "";
   size_t n = strlen(jsonStr);
   if (n >= sizeof(buf)) n = sizeof(buf) - 1;
   memcpy(buf, jsonStr, n);

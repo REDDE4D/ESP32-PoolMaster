@@ -31,7 +31,7 @@ void ProcessCommand(void *pvParameters)
 {
   //Json Document
   JsonDocument command;
-  char JSONCommand[150] = "";                         // JSON command to process  
+  char JSONCommand[QUEUE_ITEM_SIZE] = "";             // JSON command to process; sized to match queue slot
 
   while (!startTasks) ;
   vTaskDelay(DT2);                                // Scheduling offset   
