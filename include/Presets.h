@@ -36,6 +36,7 @@ namespace Presets {
   // Optional callbacks the WS / MQTT layers can install at startup so we
   // don't introduce header coupling between Presets.cpp and those modules.
   using OnChangeCb = void(*)();
-  void setOnChange(OnChangeCb cb);    // fired after every successful save/activate/clear
+  void setOnChange(OnChangeCb cb);          // fired after every successful save/activate/clear
+  void setOnChangeSecondary(OnChangeCb cb); // secondary callback (MQTT publish)
 
 }

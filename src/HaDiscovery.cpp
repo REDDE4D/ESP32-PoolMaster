@@ -44,6 +44,7 @@ static const Entity ENTITIES[] = {
   {"sensor", "chl_fill",           "Chlorine tank fill",     "mdi:water-percent",  "%",        nullptr,       false,0,0,0, nullptr},
 
   // ---- modes ----
+  {"sensor", "active_preset",      "Active preset",          "mdi:calendar-clock", nullptr, nullptr, false, 0, 0, 0, nullptr},
   {"switch", "auto_mode",          "Auto mode",              "mdi:auto-fix",       nullptr, nullptr, true, 0,0,0, nullptr},
   {"switch", "winter_mode",        "Winter mode",            "mdi:snowflake",      nullptr, nullptr, true, 0,0,0, nullptr},
   {"switch", "ph_pid",             "pH PID",                 "mdi:chart-line",     nullptr, nullptr, true, 0,0,0, nullptr},

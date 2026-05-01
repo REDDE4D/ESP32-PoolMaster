@@ -244,6 +244,7 @@ static void onMqttConnect(bool sessionPresent)
   sweepLegacyRetainedTopics();
   Drivers::resubscribeStateTopics();
   MQTTConnection = true;
+  publishActivePreset();
 }
 
 static void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason)

@@ -11,6 +11,7 @@
 #include "HistoryBuffer.h"
 #include "Drivers.h"
 #include "OutputDriver.h"
+#include "Presets.h"
 
 int freeRam(void);
 void stack_mon(UBaseType_t&);
@@ -36,6 +37,16 @@ static void pubInt(const char* entityId, long val) {
 }
 
 static void pubBool(const char* entityId, bool v) { pubStr(entityId, v ? ON : OFF); }
+
+void publishActivePreset() {
+  if (!MQTTConnection) return;
+  const Presets::PresetData& p = Presets::slot(Presets::activeSlot());
+  char payload[64];
+  snprintf(payload, sizeof(payload),
+           "{\"slot\":%u,\"name\":\"%s\"}",
+           (unsigned)Presets::activeSlot(), p.name);
+  mqttClient.publish(HaDiscovery::stateTopic("active_preset").c_str(), 0, true, payload);
+}
 
 // ---- Tasks ----
 

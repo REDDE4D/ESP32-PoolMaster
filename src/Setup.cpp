@@ -212,6 +212,7 @@ void setup()
   LogBuffer::begin();
 
   Presets::begin();
+  Presets::setOnChangeSecondary(publishActivePreset);
 
   // Boot / crash stats — increment counter and read previous session's final uptime so
   // the Diagnostics page can show "last session lasted N seconds before reset_reason X".

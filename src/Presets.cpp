@@ -11,9 +11,13 @@ namespace {
 
   PresetData g_slots[MAX_PRESETS];
   uint8_t    g_active = 0;
-  OnChangeCb g_onChange = nullptr;
+  OnChangeCb g_onChangePrimary   = nullptr;   // WebSocketHub
+  OnChangeCb g_onChangeSecondary = nullptr;   // MQTT publish
 
-  void emitChange() { if (g_onChange) g_onChange(); }
+  void emitChange() {
+    if (g_onChangePrimary)   g_onChangePrimary();
+    if (g_onChangeSecondary) g_onChangeSecondary();
+  }
 
   void resetSlotToEmptyManual(uint8_t i, const char* name) {
     PresetData& d = g_slots[i];
@@ -28,7 +32,8 @@ namespace {
   }
 } // namespace
 
-void setOnChange(OnChangeCb cb) { g_onChange = cb; }
+void setOnChange(OnChangeCb cb)          { g_onChangePrimary = cb; }
+void setOnChangeSecondary(OnChangeCb cb) { g_onChangeSecondary = cb; }
 
 uint8_t           activeSlot()         { return g_active; }
 const PresetData& slot(uint8_t i)      { return g_slots[i < MAX_PRESETS ? i : 0]; }

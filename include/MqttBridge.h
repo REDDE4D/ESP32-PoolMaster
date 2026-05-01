@@ -13,3 +13,5 @@ void mqttErrorPublish(const char* payload);
 // Enqueue a legacy-format JSON command string onto queueIn.
 // Used by MQTT onMessage AND (later) web POST handlers.
 bool enqueueCommand(const char* jsonStr);
+
+void publishActivePreset();
