@@ -16,6 +16,7 @@ extern uint32_t g_prev_uptime_s;
 #include "Arduino_DebugUtils.h"
 #include "Drivers.h"
 #include "OutputDriver.h"
+#include "Presets.h"
 
 namespace WebSocketHub {
 
@@ -172,6 +173,34 @@ static String buildStateJson() {
       o["slot"] = i;
       o["name"] = Drivers::customDisplayName(i);
       o["on"]   = (drv && drv->get());
+    }
+  }
+
+  {
+    JsonObject sched = data["schedule"].to<JsonObject>();
+    sched["active_slot"] = Presets::activeSlot();
+    JsonArray arr = sched["presets"].to<JsonArray>();
+    for (uint8_t i = 0; i < Presets::MAX_PRESETS; ++i) {
+      const Presets::PresetData& p = Presets::slot(i);
+      JsonObject o = arr.add<JsonObject>();
+      o["slot"] = i;
+      o["name"] = p.name;
+      o["type"] = (p.type == Presets::Type::AutoTemp) ? "auto_temp" : "manual";
+      JsonArray winArr = o["windows"].to<JsonArray>();
+      for (uint8_t w = 0; w < Presets::WINDOWS_PER; ++w) {
+        JsonObject wo = winArr.add<JsonObject>();
+        wo["start"]   = p.windows[w].start_min;
+        wo["end"]     = p.windows[w].end_min;
+        wo["enabled"] = p.windows[w].enabled;
+      }
+      if (p.type == Presets::Type::AutoTemp) {
+        JsonObject ab = o["auto"].to<JsonObject>();
+        ab["startMinHour"] = p.startMinHour;
+        ab["stopMaxHour"]  = p.stopMaxHour;
+        ab["centerHour"]   = p.centerHour;
+      } else {
+        o["auto"] = nullptr;
+      }
     }
   }
 
@@ -340,6 +369,10 @@ static void onClientEvent(AsyncWebSocket* srv, AsyncWebSocketClient* client,
 void begin(AsyncWebServer& srv) {
   ws.onEvent(onClientEvent);
   srv.addHandler(&ws);
+  Presets::setOnChange([]() {
+    // Schedule changed — invalidate the cache so the next tick re-broadcasts.
+    g_last_state_json = "";
+  });
   LogBuffer::setSink([](const LogBuffer::Entry& e) {
     onLogAppended(e.ts_ms, e.level, e.msg);
   });
