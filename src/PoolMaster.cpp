@@ -3,6 +3,7 @@
 #include <Arduino.h>                // Arduino framework
 #include "Config.h"
 #include "PoolMaster.h"
+#include "Presets.h"
 #include <ESP_Mail_Client.h>
 
 SMTPSession smtp;
@@ -85,6 +86,8 @@ void PoolMaster(void *pvParameters)
     ChlPump.loop();
     RobotPump.loop();
 
+    uint16_t now_min = (uint16_t)(hour() * 60 + minute());
+
     //reset time counters at midnight and send sync request to time server
     if (hour() == 0 && !DoneForTheDay)
     {
@@ -163,7 +166,7 @@ void PoolMaster(void *pvParameters)
 
     //start filtration pump as scheduled
     if (!EmergencyStopFiltPump && !FiltrationPump.IsRunning() && storage.AutoMode &&
-        !PSIError && hour() >= storage.FiltrationStart && hour() < storage.FiltrationStop )
+        !PSIError && Presets::isInActiveWindow(now_min))
         FiltrationPump.Start();
 
     //start cleaning robot for 2 hours, 30mn after filtration start
@@ -184,7 +187,7 @@ void PoolMaster(void *pvParameters)
     // start inhibited if water temperature below threshold and/or in winter mode
     if (FiltrationPump.IsRunning() && storage.AutoMode && !storage.WinterMode && !PhPID.GetMode() &&
         ((millis() - FiltrationPump.LastStartTime) / 1000 / 60 >= storage.DelayPIDs) &&
-        (hour() >= storage.FiltrationStart) && (hour() < storage.FiltrationStop) &&
+        Presets::isInActiveWindow(now_min) &&
         storage.TempValue >= storage.WaterTempLowThreshold)
     {
         //Start PIDs
@@ -193,7 +196,7 @@ void PoolMaster(void *pvParameters)
     }
 
     //stop filtration pump and PIDs as scheduled unless we are in AntiFreeze mode
-    if (storage.AutoMode && FiltrationPump.IsRunning() && !AntiFreezeFiltering && (hour() >= storage.FiltrationStop || hour() < storage.FiltrationStart))
+    if (storage.AutoMode && FiltrationPump.IsRunning() && !AntiFreezeFiltering && !Presets::isInActiveWindow(now_min))
     {
         SetPhPID(false);
         SetOrpPID(false);
@@ -201,14 +204,14 @@ void PoolMaster(void *pvParameters)
     }
 
     //Outside regular filtration hours, start filtration in case of cold Air temperatures (<-2.0deg)
-    if (!EmergencyStopFiltPump && storage.AutoMode && !PSIError && !FiltrationPump.IsRunning() && ((hour() < storage.FiltrationStart) || (hour() > storage.FiltrationStop)) && (storage.TempExternal < -2.0))
+    if (!EmergencyStopFiltPump && storage.AutoMode && !PSIError && !FiltrationPump.IsRunning() && !Presets::isInActiveWindow(now_min) && (storage.TempExternal < -2.0))
     {
         FiltrationPump.Start();
         AntiFreezeFiltering = true;
     }
 
     //Outside regular filtration hours and if in AntiFreezeFiltering mode but Air temperature rose back above 2.0deg, stop filtration
-    if (storage.AutoMode && FiltrationPump.IsRunning() && ((hour() < storage.FiltrationStart) || (hour() > storage.FiltrationStop)) && AntiFreezeFiltering && (storage.TempExternal > 2.0))
+    if (storage.AutoMode && FiltrationPump.IsRunning() && !Presets::isInActiveWindow(now_min) && AntiFreezeFiltering && (storage.TempExternal > 2.0))
     {
         FiltrationPump.Stop();
         AntiFreezeFiltering = false;
